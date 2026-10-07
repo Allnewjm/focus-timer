@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Focus Timer</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #1f2933; --muted: #6b7785;
+    --line: #e3e7ec; --accent: #3a7d6b; --accent-ink: #ffffff;
+    --warn: #b5523b; --soft: #eef5f2; --shadow: 0 6px 24px rgba(31,41,51,.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 18px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.4rem; font-weight: 600; margin: 0 0 16px; color: var(--muted); letter-spacing: .02em; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 28px; box-shadow: var(--shadow); margin-bottom: 20px; }
+  .hidden { display: none !important; }
+  label { display: block; font-weight: 600; margin: 0 0 8px; }
+  .q { font-size: 1.5rem; font-weight: 600; margin: 0 0 16px; line-height: 1.3; }
+  input[type=number], input[type=text] {
+    font: inherit; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; width: 100%; background: #fff; color: var(--ink);
+  }
+  input[type=number].big { font-size: 2.2rem; font-weight: 600; width: 160px; text-align: center; }
+  .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .field { margin-bottom: 20px; }
+  .unit { font-size: 1.3rem; color: var(--muted); }
+  button { font: inherit; cursor: pointer; border-radius: 14px; border: 1px solid var(--line); background: #fff; color: var(--ink); padding: 12px 20px; font-weight: 600; }
+  button:hover { filter: brightness(.97); }
+  button:focus-visible { outline: 3px solid #9cc9bb; outline-offset: 2px; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button.danger { color: var(--warn); }
+  button.huge { font-size: 1.6rem; padding: 18px 40px; width: 100%; border-radius: 18px; }
+  button.choice { flex: 1 1 200px; font-size: 1.25rem; padding: 18px; }
+  button.small { font-size: .85rem; padding: 6px 12px; border-radius: 10px; }
+  .task { font-size: 1.25rem; font-weight: 600; text-align: center; margin: 0 0 4px; min-height: 1.5em; }
+  .countdown { font-size: clamp(4rem, 20vw, 8rem); font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; letter-spacing: -.02em; line-height: 1.1; margin: 8px 0; }
+  .countdown.over { color: var(--warn); }
+  .sub { text-align: center; color: var(--muted); margin: 0 0 6px; }
+  .next { text-align: center; background: var(--soft); border-radius: 12px; padding: 10px 14px; margin: 18px 0; font-size: 1.05rem; }
+  .controls { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+  .controls button { min-width: 150px; }
+  .badge { display: inline-block; font-size: .75rem; font-weight: 700; background: #fff4d6; color: #7a5a00; border-radius: 999px; padding: 2px 10px; vertical-align: middle; }
+  .paused-banner { text-align: center; font-weight: 700; color: #7a5a00; }
+  details.settings { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 18px; margin-bottom: 20px; font-size: .95rem; }
+  details.settings summary { cursor: pointer; font-weight: 600; color: var(--muted); }
+  .settings-grid { display: grid; grid-template-columns: 1fr auto; gap: 10px 16px; align-items: center; margin-top: 12px; }
+  .settings-grid input[type=number] { width: 90px; padding: 6px 10px; }
+  .settings-grid input[type=checkbox] { width: 22px; height: 22px; }
+  .hint { color: var(--muted); font-size: .85rem; }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .stats { display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; font-size: 1.1rem; }
+  .stats div:nth-child(even) { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .modal-bg { position: fixed; inset: 0; background: rgba(31,41,51,.35); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+  .modal { background: #fff; border-radius: 20px; padding: 28px; max-width: 520px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.2); animation: pop .25s ease-out; }
+  .modal .meta { color: var(--muted); font-size: .9rem; margin-bottom: 14px; }
+  .modal .ack { color: var(--accent); font-weight: 600; margin-bottom: 10px; }
+  .modal .late { color: var(--warn); font-weight: 600; margin-bottom: 10px; }
+  @keyframes pop { from { transform: scale(.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .mic { display: inline-flex; align-items: center; gap: 8px; font-size: .85rem; font-weight: 600; color: #8a2d1c; background: #fdecea; border-radius: 999px; padding: 4px 12px; margin-bottom: 12px; }
+  .mic .dot { width: 10px; height: 10px; border-radius: 50%; background: #d64531; animation: pulse 1s infinite ease-in-out; }
+  @keyframes pulse { 0%,100% { transform: scale(.7); opacity: .5; } 50% { transform: scale(1.15); opacity: 1; } }
+  .heard { color: var(--muted); font-size: .85rem; font-style: italic; margin: -4px 0 10px; min-height: 1.2em; }
+  .answer-mode { display: flex; align-items: flex-start; gap: 10px; margin: 16px 0 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fafbfc; cursor: pointer; font-weight: 500; }
+  .answer-mode input { width: 22px; height: 22px; margin: 2px 0 0; flex: none; }
+  .mic-note { text-align: center; color: var(--muted); font-size: .9rem; margin: -6px 0 12px; }
+  .speak-btn { border: none; background: none; padding: 0 6px; font-size: 1.3rem; vertical-align: middle; cursor: pointer; }
+  .settings-grid select { font: inherit; font-size: .9rem; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--line); max-width: 240px; }
+  .settings-grid input[type=range] { width: 160px; }
+  .settings-sep { grid-column: 1 / -1; border-top: 1px solid var(--line); margin: 4px 0; }
+  @media (max-width: 520px) { .card { padding: 20px; } .controls button { flex: 1 1 100%; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Focus Timer <span id="testBadge" class="badge hidden">TEST MODE · 1 min = 5 s</span></h1>
+
+  <!-- START -->
+  <section id="startScreen" class="card">
+    <div class="field">
+      <p class="q"><span id="startQ">How long do you think this work session will take?</span><button id="speakStartBtn" class="speak-btn" title="Read the question aloud" aria-label="Read the question aloud">🔊</button></p>
+      <div class="row">
+        <input id="estimateInput" class="big" type="number" min="1" max="600" step="1" value="25" inputmode="numeric" aria-label="Estimated minutes">
+        <span class="unit">minutes</span>
+      </div>
+    </div>
+    <div class="field">
+      <label for="taskInput">What are you working on? <span class="hint">(optional)</span></label>
+      <input id="taskInput" type="text" maxlength="120" placeholder="e.g. Expense report">
+    </div>
+    <button id="startBtn" class="primary huge">Start</button>
+    <label class="answer-mode" for="buttonsOnly">
+      <input id="buttonsOnly" type="checkbox">
+      <span>Buttons only (no mic)<br><span class="hint" id="buttonsOnlyHint">Questions are still spoken aloud; you answer by tapping.</span></span>
+    </label>
+    <p id="notifHint" class="hint" style="margin:12px 0 0"></p>
+  </section>
+
+  <!-- RUNNING -->
+  <section id="runScreen" class="card hidden">
+    <p id="runTask" class="task"></p>
+    <div id="countdown" class="countdown">25:00</div>
+    <p id="estimateLine" class="sub"></p>
+    <p id="pausedBanner" class="paused-banner hidden">Paused</p>
+    <div id="nextLine" class="next"></div>
+    <p id="micNote" class="mic-note hidden"></p>
+    <div class="controls">
+      <button id="pauseBtn">Pause</button>
+      <button id="endBtn" class="danger">End session</button>
+    </div>
+  </section>
+
+  <!-- SUMMARY -->
+  <section id="summaryScreen" class="card hidden">
+    <p class="q" id="summaryTitle">Session summary</p>
+    <div id="summaryStats" class="stats"></div>
+    <div class="controls" style="margin-top:22px"><button id="newBtn" class="primary">New session</button></div>
+  </section>
+
+  <!-- SETTINGS -->
+  <details class="settings" id="settingsPanel">
+    <summary>Settings</summary>
+    <div class="settings-grid">
+      <label for="setMax" style="margin:0;font-weight:500">Longest gap between check-ins (min)</label>
+      <input id="setMax" type="number" min="1" max="60" step="1">
+      <label for="setStep" style="margin:0;font-weight:500">Add this much after each “Focused” (min)</label>
+      <input id="setStep" type="number" min="0.5" max="30" step="0.5">
+      <label for="setSound" style="margin:0;font-weight:500">Sound</label>
+      <input id="setSound" type="checkbox">
+      <label for="setTest" style="margin:0;font-weight:500">Test mode (1 minute = 5 seconds)</label>
+      <input id="setTest" type="checkbox">
+      <div class="settings-sep"></div>
+      <label for="setVoice" style="margin:0;font-weight:500">Speak the questions aloud</label>
+      <input id="setVoice" type="checkbox">
+      <label for="setVoiceName" style="margin:0;font-weight:500">Voice</label>
+      <select id="setVoiceName"><option value="">Auto (best English voice)</option></select>
+      <label for="setRate" style="margin:0;font-weight:500">Speaking rate <span id="rateVal" class="hint"></span></label>
+      <input id="setRate" type="range" min="0.5" max="2" step="0.1">
+      <label for="setVolume" style="margin:0;font-weight:500">Voice volume <span id="volVal" class="hint"></span></label>
+      <input id="setVolume" type="range" min="0" max="1" step="0.1">
+      <label for="setVoiceAnswers" style="margin:0;font-weight:500">Voice answers (say “focused”, “yes”, “15 minutes”…). Off = buttons only. <span id="srHint" class="hint"></span></label>
+      <input id="setVoiceAnswers" type="checkbox">
+    </div>
+    <p class="hint" id="testLockHint">Test mode can only be switched between sessions.</p>
+    <div class="row" style="margin-top:6px">
+      <button id="testChimeBtn" class="small">Test chime</button>
+      <button id="testNotifBtn" class="small">Test notification</button>
+      <button id="testVoiceBtn" class="small">Test voice</button>
+      <span id="notifStatus" class="hint"></span>
+    </div>
+  </details>
+
+  <!-- HISTORY -->
+  <section class="card" id="historyCard">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <strong>Past sessions</strong>
+      <button id="clearHistBtn" class="small danger">Clear history</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>Date</th><th>Task</th><th class="num">Estimate</th><th class="num">Actual</th><th class="num">Focus</th></tr></thead>
+        <tbody id="histBody"></tbody>
+      </table>
+    </div>
+    <p id="histEmpty" class="hint">No sessions yet.</p>
+  </section>
+</main>
+
+<!-- CHECK-IN / TIME'S UP MODAL -->
+<div id="modalBg" class="modal-bg hidden" role="dialog" aria-modal="true" aria-labelledby="modalQ">
+  <div class="modal">
+    <div id="modalMeta" class="meta"></div>
+    <div id="micInd" class="mic hidden" aria-live="polite"><span class="dot"></span><span id="micText">Listening…</span></div>
+    <div id="modalLate" class="late hidden">You missed this check-in. It'll count as “no response.”</div>
+    <div id="modalAck" class="ack hidden"></div>
+    <p id="modalQ" class="q"></p>
+    <div id="modalHeard" class="heard"></div>
+    <div id="modalChoices" class="row"></div>
+    <div id="modalInputRow" class="row hidden" style="margin-top:4px">
+      <input id="modalInput" class="big" type="number" min="1" max="600" step="1" inputmode="numeric" aria-label="Minutes">
+      <span class="unit">minutes</span>
+      <button id="modalInputOk" class="primary" style="margin-left:auto">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pure logic: no DOM, no clock. Unit-testable in node (see FocusLogic). -->
+<script id="focus-logic">
+var FocusLogic = (function () {
+  "use strict";
+  var DEFAULTS = { maxInterval: 5, step: 1, sound: true, testMode: false,
+    voice: true, voiceURI: "", rate: 1, volume: 1, voiceAnswers: true };
+
+  function sanitizeSettings(s) {
+    s = s || {};
+    var max = Number(s.maxInterval), step = Number(s.step);
+    if (!isFinite(max) || max < 1) max = DEFAULTS.maxInterval;
+    if (max > 60) max = 60;
+    if (!isFinite(step) || step <= 0) step = DEFAULTS.step;
+    if (step > 30) step = 30;
+    var rate = Number(s.rate), vol = Number(s.volume);
+    if (!isFinite(rate) || s.rate === undefined || s.rate === "") rate = DEFAULTS.rate;
+    if (!isFinite(vol) || s.volume === undefined || s.volume === "") vol = DEFAULTS.volume;
+    return {
+      maxInterval: max, step: step,
+      sound: s.sound === undefined ? DEFAULTS.sound : !!s.sound,
+      testMode: !!s.testMode,
+      voice: s.voice === undefined ? DEFAULTS.voice : !!s.voice,
+      voiceURI: typeof s.voiceURI === "string" ? s.voiceURI : "",
+      rate: Math.min(2, Math.max(0.5, rate)),
+      volume: Math.min(1, Math.max(0, vol)),
+      voiceAnswers: s.voiceAnswers === undefined ? DEFAULTS.voiceAnswers : !!s.voiceAnswers
+    };
+  }
+
+  // Interval (in "minutes") to use for the NEXT check-in, given the interval just used and the outcome.
+  // outcome: "focused" | "distracted" | "noresponse"
+  function nextIntervalMin(currentMin, outcome, settings) {
+    var s = sanitizeSettings(settings);
+    if (outcome === "focused") return Math.min(currentMin + s.step, s.maxInterval);
+    return Math.min(1, s.maxInterval); // distracted or missed -> back to 1 minute
+  }
+
+  // Next check-in time (ms, session clock) measured from fromMs; null if it would land at/after the deadline.
+  function scheduleNext(fromMs, intervalMin, deadlineMs, unitMs) {
+    var t = fromMs + intervalMin * unitMs;
+    return t < deadlineMs ? t : null;
+  }
+
+  // Classify a check-in for stats/interval purposes. A missed check-in is "noresponse" whatever he clicks.
+  function classify(q1Answer, missed) {
+    if (missed) return "noresponse";
+    return q1Answer === "focused" ? "focused" : "distracted";
+  }
+
+  // Minutes shown in "Will you finish in N more minutes?"
+  function displayMinutes(remainingMs, unitMs) {
+    return Math.max(1, Math.round(remainingMs / unitMs));
+  }
+
+  // Session summary. elapsedMs/estimate are in session clock; output minutes are in display minutes.
+  function summarize(sess) {
+    var unit = sess.unitMs;
+    var c = { focused: 0, distracted: 0, noresponse: 0 };
+    (sess.log || []).forEach(function (e) { c[e.outcome] = (c[e.outcome] || 0) + 1; });
+    var total = c.focused + c.distracted + c.noresponse;
+    var estimateMin = sess.originalEstimateMin;
+    var actualMin = sess.elapsedMs / unit;
+    return {
+      estimateMin: estimateMin,
+      actualMin: actualMin,
+      checkins: total,
+      focused: c.focused, distracted: c.distracted, noresponse: c.noresponse,
+      focusPct: total ? Math.round(100 * c.focused / total) : null,
+      reestimates: sess.reestimates || 0,
+      diffMin: actualMin - estimateMin, // + = over estimate, - = under
+      finished: !!sess.finished,
+      pausedMin: (sess.pausedMs || 0) / unit
+    };
+  }
+
+  function fmtClock(ms) { // m:ss (or h:mm:ss)
+    var neg = ms < 0; ms = Math.abs(ms);
+    var total = Math.ceil(ms / 1000 - 1e-9);
+    var h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+    var out = (h ? h + ":" + String(m).padStart(2, "0") : String(m)) + ":" + String(s).padStart(2, "0");
+    return (neg ? "-" : "") + out;
+  }
+
+  function fmtMin(min) { // "1 h 05 min", "23 min", "1.5 min"
+    var neg = min < 0; min = Math.abs(min);
+    var r = Math.round(min * 10) / 10;
+    var txt;
+    if (r >= 60) { var h = Math.floor(r / 60), m = Math.round(r - h * 60); txt = h + " h " + String(m).padStart(2, "0") + " min"; }
+    else txt = (r % 1 === 0 ? r.toFixed(0) : r.toFixed(1)) + " min";
+    return (neg ? "-" : "") + txt;
+  }
+
+  // ---- spoken answers ----
+  var ONES = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+    eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19 };
+  var TENS = { twenty: 20, thirty: 30, forty: 40, fourty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+  function norm(text) {
+    return String(text || "").toLowerCase().replace(/[-–]/g, " ").replace(/[^a-z0-9.' ]+/g, " ").replace(/\s+/g, " ").trim();
+  }
+  // Minutes from speech: "25", "25 minutes", "twenty five", "an hour", "half an hour", "1.5 hours", "an hour and a half".
+  function parseMinutes(text) {
+    var t = norm(text), m, v = null;
+    if (/\bhalf an? hour\b/.test(t)) v = 30;
+    else if (/\b(an?|one|1) (hour|hr) and a half\b|\bone and a half hours?\b/.test(t)) v = 90;
+    else if ((m = t.match(/(\d+(?:\.\d+)?)\s*(hours?|hrs?)?\b/))) v = parseFloat(m[1]) * (m[2] ? 60 : 1);
+    else {
+      var toks = t.split(" "), i, total = null, cur = 0, seen = false;
+      for (i = 0; i < toks.length; i++) {
+        var w = toks[i];
+        if (w in ONES) { cur += ONES[w]; seen = true; }
+        else if (w in TENS) { cur += TENS[w]; seen = true; }
+        else if (w === "hundred" && seen) { cur = (cur || 1) * 100; }
+        else if (w === "and" && seen) { continue; }
+        else if (seen) break;
+      }
+      if (seen) {
+        total = cur;
+        var next = toks[i] || "";
+        if (/^(hours?|hrs?)$/.test(next)) total *= 60;
+        v = total;
+      } else if (/\b(an?|one) (hour|hr)\b/.test(t)) v = 60;
+    }
+    if (v == null || !isFinite(v) || v <= 0) return null;
+    return Math.min(600, Math.round(v * 10) / 10);
+  }
+  var NEG = /\b(no|nope|nah|not|negative|more time|need more|longer|add)\b/;
+  var POS = /\b(yes|yeah|yep|yup|ya|sure|definitely|correct|right|affirmative|ok|okay|i will)\b/;
+  // step: "q1" | "q2" | "reest" | "timesup" | "add"  ->  {action, minutes} or null if not understood.
+  function interpretAnswer(step, text) {
+    var t = norm(text);
+    if (!t) return null;
+    var min;
+    switch (step) {
+      case "q1":
+        if (/\b(distract\w*|unfocus\w*|not (really |very )?focus\w*|lost focus|no|nope)\b/.test(t)) return { action: "distracted" };
+        if (/\b(focus\w*|yes|yeah|yep|on track)\b/.test(t)) return { action: "focused" };
+        return null;
+      case "q2":
+        min = parseMinutes(t);
+        if (NEG.test(t)) return { action: "no", minutes: min };
+        if (POS.test(t)) return { action: "yes" };
+        if (min != null) return { action: "no", minutes: min };
+        return null;
+      case "reest": case "add":
+        min = parseMinutes(t);
+        return min != null ? { action: "minutes", minutes: min } : null;
+      case "timesup":
+        min = parseMinutes(t);
+        if (/\b(not (yet |quite )?(done|finished)|no|nope|nah|more time|add|need more)\b/.test(t)) return { action: "add", minutes: min };
+        if (/\b(yes|yeah|yep|yup|done|finished|i did|complete\w*)\b/.test(t)) return { action: "done" };
+        if (min != null) return { action: "add", minutes: min };
+        return null;
+    }
+    return null;
+  }
+  // Pick a voice: saved choice, else the best English voice available.
+  function pickVoice(voices, savedURI) {
+    voices = voices || [];
+    var i;
+    if (savedURI) for (i = 0; i < voices.length; i++) if (voices[i].voiceURI === savedURI) return voices[i];
+    var en = voices.filter(function (v) { return /^en([-_]|$)/i.test(v.lang || ""); });
+    if (!en.length) return voices[0] || null;
+    function score(v) {
+      var s = 0, lang = (v.lang || "").replace("_", "-").toLowerCase(), n = v.name || "";
+      if (lang === "en-us") s += 4;
+      if (/natural|neural|online/i.test(n)) s += 3;
+      if (/google/i.test(n)) s += 2;
+      if (v.default) s += 1;
+      return s;
+    }
+    return en.slice().sort(function (a, b) { return score(b) - score(a); })[0];
+  }
+
+  return { DEFAULTS: DEFAULTS, parseMinutes: parseMinutes, interpretAnswer: interpretAnswer, pickVoice: pickVoice, sanitizeSettings: sanitizeSettings, nextIntervalMin: nextIntervalMin,
+    scheduleNext: scheduleNext, classify: classify, displayMinutes: displayMinutes, summarize: summarize,
+    fmtClock: fmtClock, fmtMin: fmtMin };
+})();
+if (typeof module !== "undefined" && module.exports) module.exports = FocusLogic;
+</script>
+
+<script>
+(function () {
+  "use strict";
+  var L = FocusLogic;
+  var SETTINGS_KEY = "focusTimer.settings.v1", HISTORY_KEY = "focusTimer.history.v1";
+  var APP_TITLE = "Focus Timer";
+  var LISTEN_MS = 8000;
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---------- clock (offset hook exists only for automated tests) ----------
+  var clockOffset = 0;
+  function now() { return Date.now() + clockOffset; }
+
+  // ---------- storage ----------
+  function load(key, fallback) { try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; } }
+  function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
+  var settings = L.sanitizeSettings(load(SETTINGS_KEY, L.DEFAULTS));
+  var history = load(HISTORY_KEY, []);
+  if (!Array.isArray(history)) history = [];
+
+  // ---------- audio ----------
+  var audioCtx = null;
+  function unlockAudio() {
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      if (!audioCtx) audioCtx = new AC();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      var b = audioCtx.createBuffer(1, 1, 22050), src = audioCtx.createBufferSource();
+      src.buffer = b; src.connect(audioCtx.destination); src.start(0);
+    } catch (e) {}
+  }
+  var chimeCount = 0;
+  function chime(force) {
+    if (!settings.sound && !force) return false;
+    chimeCount++;
+    try {
+      if (!audioCtx) unlockAudio();
+      if (!audioCtx) return true;
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      var t0 = audioCtx.currentTime + 0.02;
+      [[659.25, 0], [987.77, 0.22], [1318.5, 0.44]].forEach(function (n) {
+        var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.type = "sine"; o.frequency.value = n[0];
+        g.gain.setValueAtTime(0.0001, t0 + n[1]);
+        g.gain.exponentialRampToValueAtTime(0.22, t0 + n[1] + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + n[1] + 1.4);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(t0 + n[1]); o.stop(t0 + n[1] + 1.5);
+      });
+    } catch (e) {}
+    return true;
+  }
+
+  // ---------- speech out (speechSynthesis) ----------
+  var synth = window.speechSynthesis || null;
+  var voices = [];
+  var speaking = false, speakToken = 0;
+  var spokenLog = []; // for tests
+  function loadVoices() {
+    if (!synth) return;
+    try { voices = synth.getVoices() || []; } catch (e) { voices = []; }
+    var sel = $("setVoiceName"), keep = settings.voiceURI;
+    while (sel.options.length > 1) sel.remove(1);
+    var sorted = voices.slice().sort(function (a, b) {
+      var ae = /^en/i.test(a.lang) ? 0 : 1, be = /^en/i.test(b.lang) ? 0 : 1;
+      return ae - be || (a.lang || "").localeCompare(b.lang || "") || a.name.localeCompare(b.name);
+    });
+    sorted.forEach(function (v) {
+      var o = document.createElement("option");
+      o.value = v.voiceURI; o.textContent = v.name + " (" + v.lang + ")";
+      sel.appendChild(o);
+    });
+    sel.value = keep && voices.some(function (v) { return v.voiceURI === keep; }) ? keep : "";
+    var auto = L.pickVoice(voices, "");
+    sel.options[0].textContent = "Auto" + (auto ? " (" + auto.name + ")" : " (best English voice)");
+  }
+  function currentVoice() { return L.pickVoice(voices, settings.voiceURI); }
+  function cancelSpeech() {
+    speakToken++; speaking = false;
+    try { if (synth) synth.cancel(); } catch (e) {}
+  }
+  // Speak text; calls done() when finished (or failed, or after a safety timeout).
+  function speak(text, done) {
+    var tok = ++speakToken, finished = false;
+    function fin() { if (finished) return; finished = true; if (tok === speakToken) speaking = false; if (done && tok === speakToken) done(); }
+    if (!synth || !settings.voice || typeof window.SpeechSynthesisUtterance !== "function") { fin(); return; }
+    try {
+      synth.cancel();
+      var u = new SpeechSynthesisUtterance(text);
+      var v = currentVoice();
+      if (v) { u.voice = v; u.lang = v.lang; } else u.lang = "en-US";
+      u.rate = settings.rate; u.volume = settings.volume;
+      u.onend = fin; u.onerror = fin;
+      speaking = true;
+      spokenLog.push(text);
+      synth.speak(u);
+      // Safety net: some browsers never fire onend (e.g. no voices, background tab quirks).
+      setTimeout(fin, 1500 + text.length * 90 / settings.rate);
+    } catch (e) { fin(); }
+  }
+
+  // ---------- speech in (webkitSpeechRecognition) ----------
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  var recog = null, listening = false, listenTimer = null;
+  // Microphone: requested ONCE per session (getUserMedia on Start) and kept open until the session ends.
+  // Each listening window feeds that live track to recognition.start(track), which per the Web Speech spec
+  // (Chromium 135+) does not request microphone permission again, so there's no prompt at each check-in.
+  var micStream = null, gumCalls = 0, recStarts = { track: 0, plain: 0 };
+  var trackSupport = null; // does recognition.start(MediaStreamTrack) exist? detected once, without touching the mic
+  function detectTrackSupport() {
+    if (trackSupport !== null) return trackSupport;
+    trackSupport = false;
+    try {
+      // Detached-iframe probe: with track support, start("x") fails argument conversion (TypeError);
+      // without it, the argument is ignored and start fails on the detached document. No mic access either way.
+      var f = document.createElement("iframe");
+      f.style.display = "none"; document.body.appendChild(f);
+      var W = f.contentWindow, C = W && (W.SpeechRecognition || W.webkitSpeechRecognition);
+      var r = C ? new C() : null;
+      f.parentNode.removeChild(f);
+      if (r) { try { r.start("x"); try { r.abort(); } catch (e2) {} } catch (e) { trackSupport = e instanceof TypeError || e.name === "TypeError"; } }
+    } catch (e) { trackSupport = false; }
+    return trackSupport;
+  }
+  function micTrack() {
+    var t = micStream && micStream.getAudioTracks ? micStream.getAudioTracks()[0] : null;
+    return t && t.readyState === "live" ? t : null;
+  }
+  function releaseMic() {
+    if (micStream) { try { micStream.getTracks().forEach(function (t) { t.onended = null; t.stop(); }); } catch (e) {} }
+    micStream = null;
+  }
+  function setMicEnabled(on) { var t = micTrack(); if (t) t.enabled = on; }
+  // Turn voice answers off for the rest of this session (never re-asks) and show a small note.
+  function sessionMicOff(note) {
+    stopListening(); releaseMic();
+    if (!S) return;
+    S.mic = "off"; S.micNote = note || "";
+    if (note && S.modal) $("modalHeard").textContent = note;
+    render();
+  }
+  function acquireMic() { // called once from Start (user gesture)
+    var sess = S;
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
+      sessionMicOff("Voice answers aren't available here, so this session uses buttons only."); return;
+    }
+    sess.mic = "pending"; gumCalls++;
+    var p;
+    try { p = navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (e) { sessionMicOff("Microphone not available, so this session uses buttons only."); return; }
+    p.then(function (stream) {
+      if (S !== sess || sess.ended || sess.mic !== "pending") { try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} return; }
+      micStream = stream; sess.mic = "ready";
+      var t = micTrack();
+      if (t) t.onended = function () { if (S === sess && !sess.ended) sessionMicOff("Microphone disconnected, so this session uses buttons only."); };
+      if (sess.pausedAt != null) setMicEnabled(false);
+      render();
+    }, function (err) {
+      if (S !== sess || sess.ended) return;
+      var n = err && err.name;
+      sessionMicOff(n === "NotFoundError" || n === "OverconstrainedError" ? "No microphone found, so this session uses buttons only."
+        : "Microphone not allowed, so this session uses buttons only. (You won't be asked again.)");
+    });
+  }
+  function voiceAnswersOn() { return !!SR && settings.voiceAnswers && !!S && S.mic === "ready" && !!micTrack(); }
+  function stopListening() {
+    clearTimeout(listenTimer);
+    var r = recog; recog = null; listening = false;
+    if (r) { try { r.onresult = r.onerror = r.onend = null; r.abort(); } catch (e) {} }
+    showMic(false);
+  }
+  var HINTS = { q1: "say “focused” or “distracted”", q2: "say “yes” or “no”", reest: "say a number of minutes",
+    add: "say a number of minutes", timesup: "say “yes” or “no”" };
+  function showMic(on, step) {
+    $("micInd").classList.toggle("hidden", !on);
+    if (on) $("micText").textContent = "Listening… " + (HINTS[step] || "");
+  }
+  function startListening(seq) {
+    if (!voiceAnswersOn() || !S || S.ended || !S.modal) return;
+    var step = S.modal.step;
+    stopListening();
+    var rec;
+    try { rec = new SR(); } catch (e) { return; }
+    var v = currentVoice();
+    rec.lang = v && /^en/i.test(v.lang) ? v.lang : "en-US";
+    rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 5;
+    recog = rec; listening = true; showMic(true, step);
+    rec.onresult = function (e) {
+      if (rec !== recog) return;
+      for (var i = e.resultIndex; i < e.results.length; i++) {
+        var res = e.results[i], best = res[0] ? res[0].transcript : "";
+        $("modalHeard").textContent = best ? "Heard: “" + best.trim() + "”" : "";
+        if (!res.isFinal) continue;
+        for (var j = 0; j < res.length; j++) {
+          var a = L.interpretAnswer(step, res[j].transcript);
+          if (a) { stopListening(); applyVoiceAnswer(seq, step, a); return; }
+        }
+      }
+    };
+    rec.onerror = function (e) {
+      if (rec !== recog) return;
+      var err = e && e.error;
+      if (err === "not-allowed" || err === "service-not-allowed") { sessionMicOff("Microphone blocked, so this session uses buttons only."); return; }
+      if (err === "audio-capture" && usedTrack) { trackSupport = false; } // engine couldn't use the track; fall back next time
+      else if (err === "network") $("modalHeard").textContent = "Voice answers need an internet connection, so use the buttons.";
+      else if (err === "audio-capture") $("modalHeard").textContent = "No microphone found, so use the buttons.";
+    };
+    rec.onend = function () { if (rec === recog) { recog = null; listening = false; showMic(false); clearTimeout(listenTimer); } };
+    listenTimer = setTimeout(function () { if (rec === recog) stopListening(); }, LISTEN_MS);
+    var usedTrack = false, t = micTrack();
+    try {
+      if (t && detectTrackSupport()) { rec.start(t); usedTrack = true; recStarts.track++; }
+      else { rec.start(); recStarts.plain++; } // older engines: may prompt, but the open stream often prevents it
+    } catch (e) { stopListening(); }
+  }
+  function applyVoiceAnswer(seq, step, a) {
+    if (seq !== promptSeq || !S || !S.modal || S.modal.step !== step) return;
+    switch (a.action) {
+      case "focused": case "distracted": answerQ1(a.action); break;
+      case "yes": finishCheckin(true, null); break;
+      case "no": if (a.minutes != null) finishCheckin(false, a.minutes); else gotoStep("reest"); break;
+      case "minutes": submitMinutes(a.minutes); break;
+      case "done": endSession(true); break;
+      case "add": if (a.minutes != null) addTime(a.minutes); else gotoStep("add"); break;
+    }
+  }
+
+  // ---------- prompts: chime -> speak -> listen ----------
+  var promptSeq = 0;
+  function voiceBusy() { return speaking || listening; }
+  function promptText(step) {
+    if (step === "q1") return "Are you still focused?";
+    if (step === "q2") { var n = q2Minutes(); return "Will you finish in " + n + " more minute" + (n === 1 ? "" : "s") + "?"; }
+    if (step === "reest") return "How many more minutes do you need from now?";
+    if (step === "timesup") return "Time's up. Did you finish?";
+    if (step === "add") return "How many more minutes do you need?";
+    return "";
+  }
+  function runPrompt(step, withChime) {
+    var seq = ++promptSeq;
+    stopListening(); cancelSpeech();
+    $("modalHeard").textContent = "";
+    var rang = withChime ? chime() : false;
+    setTimeout(function () {
+      if (seq !== promptSeq) return;
+      speak(promptText(step), function () { if (seq === promptSeq) startListening(seq); });
+    }, rang ? 1100 : 0);
+  }
+  function endPrompt() { promptSeq++; stopListening(); cancelSpeech(); }
+
+  // ---------- notifications ----------
+  function notifSupported() { return typeof window.Notification === "function"; }
+  function notifGranted() { return notifSupported() && Notification.permission === "granted"; }
+  function requestNotif() {
+    if (!notifSupported() || Notification.permission !== "default") { updateNotifStatus(); return; }
+    try {
+      var p = Notification.requestPermission(updateNotifStatus);
+      if (p && p.then) p.then(updateNotifStatus, updateNotifStatus);
+    } catch (e) { updateNotifStatus(); }
+  }
+  var lastNotification = null;
+  function notify(title, body) {
+    if (!notifGranted()) return false;
+    try {
+      var n = new Notification(title, { body: body, tag: "focus-timer", renotify: true, requireInteraction: true });
+      n.onclick = function () { try { window.focus(); } catch (e) {} n.close(); };
+      lastNotification = n;
+      return true;
+    } catch (e) { return false; }
+  }
+  function closeNotification() { try { if (lastNotification) lastNotification.close(); } catch (e) {} lastNotification = null; }
+  function updateNotifStatus() {
+    var txt;
+    if (!notifSupported()) txt = "Notifications aren't available here; you'll get a chime and a flashing tab title.";
+    else if (Notification.permission === "granted") txt = "Notifications are on.";
+    else if (Notification.permission === "denied") txt = "Notifications are blocked; you'll get a chime and a flashing tab title.";
+    else txt = "You'll be asked to allow notifications when you press Start.";
+    $("notifStatus").textContent = txt;
+    $("notifHint").textContent = txt;
+  }
+  function updateSrHint() {
+    $("srHint").textContent = !SR ? "(not supported in this browser)" : "";
+    $("setVoiceAnswers").disabled = !SR;
+    $("buttonsOnly").disabled = !SR;
+    $("buttonsOnlyHint").textContent = SR ? "Questions are still spoken aloud; you answer by tapping."
+      : "This browser can't take voice answers, so it's buttons only. Questions are still spoken aloud.";
+  }
+
+  // ---------- session state ----------
+  // All session times are "session clock" ms: time since start, excluding pauses.
+  var S = null;
+  function newSession(estimateMin, task) {
+    var unit = settings.testMode ? 5000 : 60000;
+    return {
+      task: task, unitMs: unit, testMode: settings.testMode,
+      startedAt: now(), startedIso: new Date().toISOString(),
+      pausedMs: 0, pausedAt: null,
+      originalEstimateMin: estimateMin,
+      deadline: estimateMin * unit,
+      intervalMin: 1,
+      nextCheck: L.scheduleNext(0, 1, estimateMin * unit, unit),
+      log: [], reestimates: 0,
+      modal: null, // {kind:"checkin"|"timesup", step, openedAt, stepAt, q1, missed, repeated}
+      ended: false, finished: false, endedAtClock: null,
+      mic: "none", micNote: "" // mic: none | pending | ready | off
+    };
+  }
+  function clock() {
+    if (!S) return 0;
+    var wall = S.pausedAt != null ? S.pausedAt : now();
+    return wall - S.startedAt - S.pausedMs;
+  }
+  function q2Minutes() { return S ? L.displayMinutes(Math.max(0, S.deadline - clock()), S.unitMs) : 1; }
+
+  // ---------- core tick ----------
+  function tick() {
+    if (S && !S.ended && S.pausedAt == null) {
+      var c = clock(), m = S.modal;
+      if (m && m.kind === "checkin" && c >= S.deadline) { abandonCheckin(c); openTimesUp(c); }
+      else if (m) {
+        if (m.kind === "checkin" && !m.q1 && !m.missed && c - m.openedAt >= S.unitMs) {
+          m.missed = true; // 60 s (one unit) without an answer -> counts as "no response"
+          renderModal();
+        }
+        // Repeat the question once (chime + voice for the main questions) after 60 s without an answer.
+        if (!m.repeated && c - m.stepAt >= S.unitMs && !voiceBusy()) {
+          m.repeated = true;
+          runPrompt(m.step, m.step === "q1" || m.step === "timesup");
+        }
+      } else {
+        if (c >= S.deadline) openTimesUp(c);
+        else if (S.nextCheck != null && c >= S.nextCheck) openCheckin(c);
+      }
+    }
+    render();
+  }
+
+  function gotoStep(step) {
+    S.modal.step = step; S.modal.stepAt = clock(); S.modal.repeated = false;
+    renderModal();
+    runPrompt(step, false);
+  }
+  function openCheckin(c) {
+    S.nextCheck = null;
+    S.modal = { kind: "checkin", step: "q1", openedAt: c, stepAt: c, q1: null, missed: false, repeated: false };
+    notify("Check-in: still focused?", (S.task ? S.task + " · " : "") + L.fmtClock(scaled(S.deadline - c)) + " left on your estimate");
+    renderModal();
+    runPrompt("q1", true);
+  }
+  function abandonCheckin(c) { // check-in interrupted by the countdown reaching zero
+    var m = S.modal;
+    if (m.q1 || m.missed) {
+      logCheckin(m, c, null);
+      S.intervalMin = L.nextIntervalMin(S.intervalMin, L.classify(m.q1, m.missed), settings);
+    }
+    S.modal = null; endPrompt();
+  }
+  function logCheckin(m, c, onTime, newMin) {
+    S.log.push({ at: m.openedAt, answeredAt: c, answer: m.q1, outcome: L.classify(m.q1, m.missed),
+      onTime: onTime, newEstimateMin: newMin == null ? null : newMin });
+  }
+  function answerQ1(ans) { if (!S || !S.modal || S.modal.step !== "q1") return; S.modal.q1 = ans; gotoStep("q2"); }
+  function finishCheckin(onTime, newMin) {
+    if (!S || !S.modal || S.modal.kind !== "checkin") return;
+    var c = clock(), m = S.modal;
+    logCheckin(m, c, onTime, newMin);
+    if (newMin != null) { S.deadline = c + newMin * S.unitMs; S.reestimates++; }
+    S.intervalMin = L.nextIntervalMin(S.intervalMin, L.classify(m.q1, m.missed), settings);
+    S.nextCheck = L.scheduleNext(c, S.intervalMin, S.deadline, S.unitMs); // measured from when he answers
+    S.modal = null; endPrompt(); closeNotification();
+    renderModal(); render();
+  }
+  function openTimesUp(c) {
+    S.nextCheck = null;
+    S.modal = { kind: "timesup", step: "timesup", openedAt: c, stepAt: c, repeated: false };
+    notify("Time's up", (S.task ? S.task + " · " : "") + "Did you finish?");
+    renderModal();
+    runPrompt("timesup", true);
+  }
+  function addTime(min) {
+    if (!S || !S.modal || S.modal.kind !== "timesup") return;
+    var c = clock();
+    S.deadline = c + min * S.unitMs; S.reestimates++;
+    S.nextCheck = L.scheduleNext(c, S.intervalMin, S.deadline, S.unitMs);
+    S.modal = null; endPrompt(); closeNotification(); renderModal(); render();
+  }
+
+  function startSession() {
+    var est = Number($("estimateInput").value);
+    if (!isFinite(est) || est <= 0) { $("estimateInput").focus(); return; }
+    est = Math.min(600, Math.round(est * 10) / 10);
+    unlockAudio();
+    cancelSpeech();
+    requestNotif();
+    releaseMic();
+    S = newSession(est, $("taskInput").value.trim());
+    if (SR && settings.voiceAnswers) acquireMic(); // the only mic request this session
+    show("run"); renderModal(); render();
+  }
+  function togglePause() {
+    if (!S || S.ended) return;
+    if (S.pausedAt == null) { S.pausedAt = now(); setMicEnabled(false); } // mute capture while paused (no re-prompt on resume)
+    else { S.pausedMs += now() - S.pausedAt; S.pausedAt = null; setMicEnabled(true); }
+    render();
+  }
+  function endSession(finished) {
+    if (!S || S.ended) return;
+    if (S.pausedAt != null) { S.pausedMs += now() - S.pausedAt; S.pausedAt = null; }
+    var c = clock();
+    if (S.modal && S.modal.kind === "checkin" && (S.modal.q1 || S.modal.missed)) logCheckin(S.modal, c, null);
+    S.modal = null; endPrompt(); closeNotification();
+    releaseMic(); // stop the mic tracks at session end
+    S.ended = true; S.finished = !!finished; S.endedAtClock = c;
+    var sum = L.summarize({ unitMs: S.unitMs, originalEstimateMin: S.originalEstimateMin, elapsedMs: c,
+      log: S.log, reestimates: S.reestimates, finished: S.finished, pausedMs: S.pausedMs });
+    S.summary = sum;
+    history.unshift({ date: S.startedIso, task: S.task, estimateMin: sum.estimateMin,
+      actualMin: Math.round(sum.actualMin * 10) / 10, focusPct: sum.focusPct, finished: sum.finished, test: S.testMode });
+    if (history.length > 200) history.length = 200;
+    save(HISTORY_KEY, history);
+    renderSummary(sum); renderHistory();
+    show("summary"); renderModal(); render();
+  }
+
+  // ---------- rendering ----------
+  function scaled(ms) { return S ? ms * 60000 / S.unitMs : ms; } // session ms -> displayed ms
+  function show(which) {
+    $("startScreen").classList.toggle("hidden", which !== "start");
+    $("runScreen").classList.toggle("hidden", which !== "run");
+    $("summaryScreen").classList.toggle("hidden", which !== "summary");
+    var locked = which === "run";
+    $("setTest").disabled = locked;
+    $("testLockHint").classList.toggle("hidden", !locked);
+  }
+  var lastTitle = "";
+  function setTitle(t) { if (t !== lastTitle) { document.title = t; lastTitle = t; } }
+
+  function render() {
+    $("testBadge").classList.toggle("hidden", !(S && !S.ended ? S.testMode : settings.testMode));
+    if (!S || S.ended) { setTitle(APP_TITLE); return; }
+    var c = clock(), rem = S.deadline - c, over = rem < 0;
+    $("runTask").textContent = S.task || "Focus session";
+    $("countdown").textContent = over ? "+" + L.fmtClock(scaled(-rem)) : L.fmtClock(scaled(rem));
+    $("countdown").classList.toggle("over", over);
+    var est = "Estimate: " + L.fmtMin(S.originalEstimateMin);
+    if (S.reestimates) est += " · re-estimated " + S.reestimates + "×";
+    $("estimateLine").textContent = est;
+    var paused = S.pausedAt != null;
+    $("pausedBanner").classList.toggle("hidden", !paused);
+    $("pauseBtn").textContent = paused ? "Resume" : "Pause";
+    var nl;
+    if (S.modal) nl = S.modal.kind === "checkin" ? "Check-in now" : "Time's up";
+    else if (S.nextCheck == null) nl = "No more check-ins before time's up";
+    else {
+      var until = S.nextCheck - c;
+      nl = "Next check-in in " + L.fmtClock(scaled(until));
+      if (!S.testMode && !paused) nl += " (" + new Date(now() + until).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + ")";
+      nl += " · every " + L.fmtMin(S.intervalMin);
+    }
+    $("nextLine").textContent = nl;
+    var mn = S.micNote || (S.mic === "pending" ? "Waiting for microphone permission (asked once per session)…" : "");
+    $("micNote").textContent = mn; $("micNote").classList.toggle("hidden", !mn);
+    if (S.modal) { // flash the title while a question is waiting (fallback when notifications are off)
+      var alt = Math.floor(Date.now() / 900) % 2 === 0;
+      setTitle(alt ? (S.modal.kind === "checkin" ? "⏰ Check-in!" : "⏰ Time's up!") : "● " + APP_TITLE);
+    } else {
+      setTitle((paused ? "⏸ " : "") + $("countdown").textContent + " · " + APP_TITLE);
+    }
+    if (S.modal && S.modal.step === "q2") {
+      var q = promptText("q2");
+      if ($("modalQ").textContent !== q) $("modalQ").textContent = q;
+    }
+  }
+
+  function choiceBtn(label, cls, fn) {
+    var b = document.createElement("button");
+    b.textContent = label; b.className = "choice " + (cls || ""); b.onclick = fn; return b;
+  }
+  function submitMinutes(val) {
+    if (!S || !S.modal) return;
+    var v = Number(val != null ? val : $("modalInput").value);
+    if (!isFinite(v) || v <= 0) { $("modalInput").focus(); return; }
+    v = Math.min(600, Math.round(v * 10) / 10);
+    if (S.modal.step === "reest") finishCheckin(false, v);
+    else if (S.modal.step === "add") addTime(v);
+  }
+
+  var renderedModalKey = "";
+  function renderModal() {
+    var m = S && !S.ended ? S.modal : null;
+    var key = m ? m.kind + ":" + m.step + ":" + m.openedAt + ":" + !!m.missed : "";
+    if (key === renderedModalKey) return;
+    var stepChanged = !m || renderedModalKey.split(":").slice(0, 3).join(":") !== key.split(":").slice(0, 3).join(":");
+    renderedModalKey = key;
+    $("modalBg").classList.toggle("hidden", !m);
+    if (!m) { showMic(false); return; }
+    var ch = $("modalChoices");
+    ch.innerHTML = "";
+    $("modalInputRow").classList.toggle("hidden", !(m.step === "reest" || m.step === "add"));
+    $("modalAck").classList.add("hidden");
+    $("modalLate").classList.toggle("hidden", !(m.kind === "checkin" && m.missed));
+    $("modalMeta").textContent = m.kind === "checkin"
+      ? "Check-in " + (S.log.length + 1) + (S.task ? " · " + S.task : "")
+      : "Estimate reached" + (S.task ? " · " + S.task : "");
+    if (m.step === "q1") {
+      $("modalQ").textContent = promptText("q1");
+      ch.appendChild(choiceBtn("Focused", "primary", function () { answerQ1("focused"); }));
+      ch.appendChild(choiceBtn("Distracted", "", function () { answerQ1("distracted"); }));
+    } else if (m.step === "q2") {
+      $("modalAck").textContent = m.q1 === "focused" ? "Nice, keep going." : "Okay, let's get back on track.";
+      $("modalAck").classList.remove("hidden");
+      $("modalQ").textContent = promptText("q2");
+      ch.appendChild(choiceBtn("Yes", "primary", function () { finishCheckin(true, null); }));
+      ch.appendChild(choiceBtn("No, I need more time", "", function () { gotoStep("reest"); }));
+    } else if (m.step === "reest" || m.step === "add") {
+      $("modalQ").textContent = promptText(m.step);
+      if (stepChanged) {
+        $("modalInput").value = m.step === "reest" ? q2Minutes() + 5 : 10;
+        setTimeout(function () { $("modalInput").focus(); $("modalInput").select(); }, 30);
+      }
+    } else if (m.step === "timesup") {
+      $("modalQ").textContent = promptText("timesup");
+      ch.appendChild(choiceBtn("Yes, done", "primary", function () { endSession(true); }));
+      ch.appendChild(choiceBtn("No, add time", "", function () { gotoStep("add"); }));
+    }
+    var first = ch.querySelector("button");
+    if (first && stepChanged) setTimeout(function () { first.focus(); }, 30);
+  }
+
+  function renderSummary(s) {
+    var rows = [
+      ["Original estimate", L.fmtMin(s.estimateMin)],
+      ["Actual time (excl. pauses)", L.fmtMin(s.actualMin)],
+      [s.diffMin >= 0 ? "Over estimate by" : "Under estimate by", L.fmtMin(Math.abs(s.diffMin))],
+      ["Check-ins", String(s.checkins)],
+      ["Focused", String(s.focused)],
+      ["Distracted", String(s.distracted)],
+      ["No response", String(s.noresponse)],
+      ["Focus", s.focusPct == null ? "–" : s.focusPct + "%"],
+      ["Re-estimates", String(s.reestimates)]
+    ];
+    if (s.pausedMin > 0.05) rows.splice(2, 0, ["Paused", L.fmtMin(s.pausedMin)]);
+    $("summaryTitle").textContent = s.finished ? "Done! Session summary" : "Session ended · summary";
+    var box = $("summaryStats"); box.innerHTML = "";
+    rows.forEach(function (r) {
+      var a = document.createElement("div"), b = document.createElement("div");
+      a.textContent = r[0]; b.textContent = r[1];
+      box.appendChild(a); box.appendChild(b);
+    });
+  }
+
+  function renderHistory() {
+    var tb = $("histBody"); tb.innerHTML = "";
+    history.forEach(function (h) {
+      var tr = document.createElement("tr");
+      var d = new Date(h.date);
+      var cells = [
+        d.toLocaleDateString([], { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+        (h.task || "—") + (h.test ? " (test)" : ""),
+        L.fmtMin(h.estimateMin), L.fmtMin(h.actualMin),
+        h.focusPct == null ? "–" : h.focusPct + "%"
+      ];
+      cells.forEach(function (t, i) { var td = document.createElement("td"); td.textContent = t; if (i >= 2) td.className = "num"; tr.appendChild(td); });
+      tb.appendChild(tr);
+    });
+    $("histEmpty").classList.toggle("hidden", history.length > 0);
+  }
+
+  // ---------- settings UI ----------
+  function loadSettingsUI() {
+    $("setMax").value = settings.maxInterval; $("setStep").value = settings.step;
+    $("setSound").checked = settings.sound; $("setTest").checked = settings.testMode;
+    $("setVoice").checked = settings.voice; $("setRate").value = settings.rate; $("setVolume").value = settings.volume;
+    $("setVoiceAnswers").checked = settings.voiceAnswers && !!SR;
+    $("buttonsOnly").checked = !settings.voiceAnswers || !SR;
+    $("rateVal").textContent = "(" + Number(settings.rate).toFixed(1) + "×)";
+    $("volVal").textContent = "(" + Math.round(settings.volume * 100) + "%)";
+    if ($("setVoiceName").value !== settings.voiceURI) $("setVoiceName").value = settings.voiceURI;
+  }
+  function saveSettingsUI() {
+    settings = L.sanitizeSettings({ maxInterval: $("setMax").value, step: $("setStep").value,
+      sound: $("setSound").checked, testMode: S && !S.ended ? settings.testMode : $("setTest").checked,
+      voice: $("setVoice").checked, voiceURI: $("setVoiceName").value, rate: $("setRate").value, volume: $("setVolume").value,
+      voiceAnswers: SR ? $("setVoiceAnswers").checked : settings.voiceAnswers });
+    save(SETTINGS_KEY, settings);
+    $("rateVal").textContent = "(" + Number(settings.rate).toFixed(1) + "×)";
+    $("volVal").textContent = "(" + Math.round(settings.volume * 100) + "%)";
+    if (!settings.voice) cancelSpeech();
+    if (!settings.voiceAnswers && S && !S.ended && S.mic !== "off" && S.mic !== "none") sessionMicOff(""); // switched to buttons only mid-session
+    $("buttonsOnly").checked = !settings.voiceAnswers || !SR;
+    render();
+  }
+  ["setMax", "setStep", "setSound", "setTest", "setVoice", "setVoiceName", "setRate", "setVolume", "setVoiceAnswers"].forEach(function (id) {
+    $(id).addEventListener("change", saveSettingsUI);
+  });
+  $("buttonsOnly").addEventListener("change", function () {
+    $("setVoiceAnswers").checked = !this.checked;
+    saveSettingsUI();
+  });
+  $("setRate").addEventListener("input", function () { $("rateVal").textContent = "(" + Number(this.value).toFixed(1) + "×)"; });
+  $("setVolume").addEventListener("input", function () { $("volVal").textContent = "(" + Math.round(this.value * 100) + "%)"; });
+  $("setMax").addEventListener("blur", loadSettingsUI); $("setStep").addEventListener("blur", loadSettingsUI);
+
+  // ---------- start question (spoken) ----------
+  // Chrome only lets a page speak after the user has interacted with it, so we try on load and
+  // otherwise speak it on the first click/tap on the start screen (or via the 🔊 button).
+  var startSpoken = false;
+  function speakStartQuestion() {
+    if (!settings.voice || !synth || $("startScreen").classList.contains("hidden")) return;
+    speak($("startQ").textContent, null);
+    startSpoken = true;
+  }
+  $("speakStartBtn").onclick = function () { unlockAudio(); speakStartQuestion(); };
+  $("startScreen").addEventListener("pointerdown", function (e) {
+    if (!startSpoken && !(e.target && e.target.id === "startBtn")) speakStartQuestion();
+  });
+
+  // ---------- events ----------
+  $("startBtn").onclick = startSession;
+  $("estimateInput").addEventListener("keydown", function (e) { if (e.key === "Enter") startSession(); });
+  $("taskInput").addEventListener("keydown", function (e) { if (e.key === "Enter") startSession(); });
+  $("pauseBtn").onclick = togglePause;
+  $("endBtn").onclick = function () { endSession(false); };
+  $("newBtn").onclick = function () { S = null; show("start"); render(); $("estimateInput").focus(); speakStartQuestion(); };
+  $("modalInputOk").onclick = function () { submitMinutes(); };
+  $("modalInput").addEventListener("keydown", function (e) { if (e.key === "Enter") submitMinutes(); });
+  $("modalInput").addEventListener("input", function () { if (listening) stopListening(); }); // typing -> stop listening
+  $("clearHistBtn").onclick = function () {
+    if (!history.length || !confirm("Clear all past sessions?")) return;
+    history = []; save(HISTORY_KEY, history); renderHistory();
+  };
+  $("testChimeBtn").onclick = function () { unlockAudio(); chime(true); };
+  $("testVoiceBtn").onclick = function () {
+    unlockAudio();
+    if (!synth) { $("notifStatus").textContent = "This browser can't speak."; return; }
+    var was = settings.voice; settings.voice = true;
+    speak("Are you still focused?", null);
+    settings.voice = was;
+  };
+  $("testNotifBtn").onclick = function () {
+    unlockAudio();
+    if (!notifSupported()) { updateNotifStatus(); return; }
+    if (Notification.permission === "default") {
+      var p = Notification.requestPermission(function () { updateNotifStatus(); notify("Focus Timer", "Notifications work."); });
+      if (p && p.then) p.then(function () { updateNotifStatus(); notify("Focus Timer", "Notifications work."); });
+    } else if (!notify("Focus Timer", "Notifications work.")) updateNotifStatus();
+  };
+  document.addEventListener("visibilitychange", tick);
+  window.addEventListener("focus", tick);
+  window.addEventListener("pagehide", releaseMic);
+  window.addEventListener("beforeunload", function (e) { if (S && !S.ended) { e.preventDefault(); e.returnValue = ""; } });
+  if (synth) {
+    loadVoices();
+    try { synth.addEventListener("voiceschanged", function () { loadVoices(); loadSettingsUI(); }); }
+    catch (e) { synth.onvoiceschanged = loadVoices; }
+  }
+
+  // ---------- ticker ----------
+  // A Web Worker timer isn't subject to Chrome's heavy background-tab throttling of main-thread timers.
+  // Falls back to setInterval if workers can't be created (all timing uses timestamps either way).
+  var tickerKind = "interval";
+  try {
+    var blob = new Blob(["setInterval(function(){postMessage(0)},250);"], { type: "text/javascript" });
+    var w = new Worker(URL.createObjectURL(blob));
+    w.onmessage = tick;
+    w.onerror = function () { tickerKind = "interval"; setInterval(tick, 250); };
+    tickerKind = "worker";
+  } catch (e) { setInterval(tick, 250); }
+  if (tickerKind === "worker") setInterval(tick, 1000); // belt and braces; double ticks are harmless
+
+  // ---------- test hooks (used by automated tests only) ----------
+  window.__focusTimer = {
+    advance: function (ms) { clockOffset += ms; tick(); },
+    state: function () { return S ? JSON.parse(JSON.stringify(S)) : null; },
+    clock: clock, settings: function () { return settings; },
+    tickerKind: function () { return tickerKind; },
+    mic: function () { return { gumCalls: gumCalls, recStarts: recStarts, trackSupport: trackSupport, live: !!micTrack(),
+      enabled: !!(micTrack() && micTrack().enabled), state: S ? S.mic : null, note: S ? S.micNote : "" }; },
+    history: function () { return history.slice(); },
+    spoken: function () { return spokenLog.slice(); },
+    chimes: function () { return chimeCount; },
+    voice: function () { return { speaking: speaking, listening: listening, srSupported: !!SR, voice: (currentVoice() || {}).name || null }; }
+  };
+
+  loadSettingsUI(); updateNotifStatus(); updateSrHint(); renderHistory(); show("start"); render();
+  try { if (navigator.userActivation && navigator.userActivation.hasBeenActive) speakStartQuestion(); } catch (e) {}
+})();
+</script>
+</body>
+</html>
